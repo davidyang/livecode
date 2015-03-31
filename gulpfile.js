@@ -8,8 +8,8 @@ var path = require('path'),
     rename = require('gulp-rename'),
     livereload = require('gulp-livereload');
 
-var MAIN_JS_FILE = path.join(__dirname, './client/javascripts/main.js');
-var PUBLIC_JS_DIR = path.join(__dirname, './public/javascripts');
+var MAIN_JS_FILE = path.join(__dirname, './web-files/javascripts/main.js');
+var PUBLIC_JS_DIR = path.join(__dirname, './web-files');
 
 gulp.task('compileJS', function () {
 
@@ -33,17 +33,20 @@ gulp.task('compileJS', function () {
 
 gulp.task('compileCSS', function () {
 
-    return gulp.src('./client/sass/main.scss')
+    return gulp.src('./web-files/sass/main.scss')
         .pipe(plumber())
         .pipe(sass())
         .pipe(rename('style.css'))
-        .pipe(gulp.dest('./public/stylesheets'))
+        .pipe(gulp.dest('./web-files'))
         .pipe(livereload());
 
 });
 
+
 gulp.task('default', function () {
     livereload.listen();
-    gulp.watch('client/javascripts/**/*.js', ['compileJS']);
-    gulp.watch('client/sass/**/*.scss', ['compileCSS']);
+    gulp.watch('web-files/javascripts/**/*.js', ['compileJS']);
+    gulp.watch('web-files/sass/**/*.scss', ['compileCSS']);
+    // gulp.watch('**/.go', ['runGo']);
+    // look at gulp-go later
 });
