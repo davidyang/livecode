@@ -1,3 +1,23 @@
 body {
 
 }
+
+.container {
+  display: flex;
+  flex-direction: row;
+  flex-flow: row wrap;
+}
+
+.fileViewer {
+  display: flex;
+  flex-direction: column;
+  flex: 1 auto;
+  .fileTabs {
+    display: flex;
+    flex-direction: row;
+
+    li {
+      
+    }   
+  }
+}

@@ -1,0 +1,12 @@
+.container {
+  display: flex;
+  flex-direction: row;
+  flex-flow: row wrap; }
+
+.fileViewer {
+  display: flex;
+  flex-direction: column;
+  flex: 1 auto; }
+  .fileViewer .fileTabs {
+    display: flex;
+    flex-direction: row; }

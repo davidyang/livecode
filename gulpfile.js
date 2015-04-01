@@ -40,13 +40,12 @@ gulp.task('compileCSS', function () {
         .pipe(gulp.dest('./web-files'))
         .pipe(livereload());
 
-});
+}); 
 
-
-gulp.task('default', function () {
+gulp.task('default', ["compileJS","compileCSS"], function () {
     livereload.listen();
     gulp.watch('web-files/javascripts/**/*.js', ['compileJS']);
-    gulp.watch('web-files/sass/**/*.scss', ['compileCSS']);
+    gulp.watch('web-files/sass/**/*.scss', ['compileCSS']); 
     // gulp.watch('**/.go', ['runGo']);
     // look at gulp-go later
 });

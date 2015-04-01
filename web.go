@@ -14,7 +14,7 @@ import (
 var h *hub
 
 func main() {
-	watchedFiles = make(map[string]string)
+	watchedFiles = make(map[string]*fileWatch)
 
 	h = newHub()
 	go h.run()
@@ -22,21 +22,22 @@ func main() {
 	SetupWatcher()
 	initialWalk(".")
 
-	files := watchedFiles.getFiles()
-	fmt.Println("files", files)
+	// files := watchedFiles.getFiles()
+	// fmt.Println("files", files)
 
-	http.HandleFunc("/current.json", func(w http.ResponseWriter, r *http.Request) {
-		b, _ := json.Marshal(watchedFiles)
+	http.HandleFunc("/files", func(w http.ResponseWriter, r *http.Request) {
+		b, _ := json.Marshal(watchedFiles.getFiles())
 		fmt.Fprintf(w, string(b))
 	})
 
 	http.HandleFunc("/get_file", func(w http.ResponseWriter, r *http.Request) {
 		log.Print("Got value for name: ", r.FormValue("name"))
-		contents, ok := watchedFiles[r.FormValue("filename")]
+		fileWatch, ok := watchedFiles[r.FormValue("filename")]
 		if !ok {
-			fmt.Fprintf(w, string("Error"))
+			fmt.Fprintf(w, string("Error did not find"+r.FormValue("filename")))
+			return
 		}
-		fmt.Fprintf(w, string(contents))
+		fmt.Fprintf(w, string(fileWatch.Contents))
 	})
 
 	http.HandleFunc("/jsontest", func(w http.ResponseWriter, r *http.Request) {

@@ -1,8 +1,8 @@
 package main
 
+// comment
 import (
 	"encoding/json"
-	"fmt"
 	"gopkg.in/fsnotify.v1"
 	"io/ioutil"
 	"log"
@@ -18,7 +18,15 @@ type UpdateMessage struct {
 	Contents   string
 }
 
-type StringMap map[string]string
+type fileWatch struct {
+	UpdateTime time.Time
+	Filename   string
+	Contents   string
+}
+
+// func (fw *fileWatch) newWatch
+
+type StringMap map[string]*fileWatch
 
 var watchedFiles StringMap
 var watcher *fsnotify.Watcher
@@ -28,9 +36,10 @@ func (w *StringMap) getFiles() []string {
 	var files []string
 	files = make([]string, len(*w))
 
+	i := 0
 	for key, _ := range *w {
-		fmt.Println("here", key)
-		files = append(files, key)
+		files[i] = key
+		i++
 	}
 	return files
 }
@@ -69,7 +78,8 @@ func initialWalk(walkDir string) {
 			watcher.Add(fp)
 		} else { // assume regular file
 			log.Print("Is a file: ", fp)
-			watchedFiles[fp], _ = readFile(fp)
+			fileData, _ := readFile(fp)
+			watchedFiles[fp] = &fileWatch{time.Now(), fp, fileData}
 		}
 		return nil
 	})
@@ -81,6 +91,13 @@ func readFile(fp string) (string, error) {
 	if err != nil {
 		log.Fatal("Error reading file", fp)
 	}
+
+	// log.Print(fp, " was ", len(data))
+	if len(data) > 100000 { // file size is > 100k probably not for show
+		// log.Print(fp, " was too large at ", len(data))
+		return "--- trimmed as too large ---", nil
+	}
+
 	return string(data), nil
 }
 
@@ -99,13 +116,17 @@ func handleEvent(event fsnotify.Event) {
 	var eventType string
 	var message UpdateMessage
 
-	if event.Op&(fsnotify.Write|fsnotify.Create) > 0 {
+	if event.Op&(fsnotify.Remove|fsnotify.Rename) > 0 {
+		// remove from map
+		eventType = "remove"
+		message = UpdateMessage{time.Now(), eventType, event.Name, ""}
+	} else if event.Op&(fsnotify.Write|fsnotify.Create) > 0 {
 		// check if dir or file
 		eventType = "update"
 		filetype := checkFileOrDir(event.Name)
 		if filetype == "file" {
 			filedata, _ := readFile(event.Name)
-			watchedFiles[event.Name] = filedata
+			watchedFiles[event.Name] = &fileWatch{time.Now(), event.Name, filedata}
 			message = UpdateMessage{time.Now(), eventType, event.Name, filedata}
 
 		} else {
@@ -113,10 +134,6 @@ func handleEvent(event fsnotify.Event) {
 			watcher.Add(event.Name)
 			return
 		}
-	} else if event.Op&(fsnotify.Remove|fsnotify.Rename) > 0 {
-		// remove from map
-		eventType = "remove"
-		message = UpdateMessage{time.Now(), eventType, event.Name, ""}
 	} else {
 		log.Print("Not one of previous types")
 		return
