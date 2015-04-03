@@ -20,13 +20,15 @@ func (c *Connection) reader() {
 		if err != nil {
 			break
 		}
+
 		// c.h.broadcast <- message
 	}
 	c.ws.Close()
 }
 
 func (c *Connection) writer() {
-	//
+	// block on the c.send channel
+	// when
 	for message := range c.send {
 		err := c.ws.WriteMessage(websocket.TextMessage, message)
 		if err != nil {

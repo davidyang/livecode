@@ -1,3 +1,5 @@
+/* Comments to package.json */
+
 {
   "name": "livecode",
   "version": "0.0.0",
@@ -11,6 +13,7 @@
     "gulp-go": "^1.0.1",
     "gulp-shell": "^0.4.0",
     "jquery": "^2.1.3",
+    "lodash": "^3.6.0",
     "react": "^0.12.2",
     "serve-favicon": "~2.1.3",
     "superagent": "^1.1.0"
@@ -22,6 +25,7 @@
     "gulp-plumber": "^1.0.0",
     "gulp-rename": "^1.2.0",
     "gulp-sass": "^1.3.3",
+    "gulp-shell": "^0.4.0",
     "reactify": "^1.1.0",
     "vinyl-source-stream": "^1.1.0"
   }

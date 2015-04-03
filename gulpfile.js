@@ -6,7 +6,8 @@ var path = require('path'),
     plumber = require('gulp-plumber'),
     sass = require('gulp-sass'),
     rename = require('gulp-rename'),
-    livereload = require('gulp-livereload');
+    livereload = require('gulp-livereload'),
+    shell = require('gulp-shell');
 
 var MAIN_JS_FILE = path.join(__dirname, './web-files/javascripts/main.js');
 var PUBLIC_JS_DIR = path.join(__dirname, './web-files');
@@ -42,10 +43,15 @@ gulp.task('compileCSS', function () {
 
 }); 
 
+gulp.task('runGo', shell.task([
+    "sh stop.sh",
+    'go run *.go &'
+]));
+
 gulp.task('default', ["compileJS","compileCSS"], function () {
     livereload.listen();
     gulp.watch('web-files/javascripts/**/*.js', ['compileJS']);
     gulp.watch('web-files/sass/**/*.scss', ['compileCSS']); 
-    // gulp.watch('**/.go', ['runGo']);
+    // gulp.watch('web.go', ['runGo']);
     // look at gulp-go later
 });

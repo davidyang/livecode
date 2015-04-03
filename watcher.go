@@ -26,13 +26,13 @@ type fileWatch struct {
 
 // func (fw *fileWatch) newWatch
 
-type StringMap map[string]*fileWatch
+type FileWatchMap map[string]*fileWatch
 
-var watchedFiles StringMap
+var watchedFiles FileWatchMap
 var watcher *fsnotify.Watcher
 var skipDirs = [...]string{".git", "node_modules", "livecode_logs"}
 
-func (w *StringMap) getFiles() []string {
+func (w *FileWatchMap) getFiles() []string {
 	var files []string
 	files = make([]string, len(*w))
 

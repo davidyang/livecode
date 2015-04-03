@@ -1,48 +1,48 @@
 var React = require('react');
 var $ = require('jquery');
 var EventEmitter = require('events').EventEmitter;
+var _ = require('lodash'); // test
 
-var getFilesAtDepth = function(fileArray, depth) {
+
+var getFilesInFolder = function(fileArray, folder) {
+  var searchPath = folder.split("/");
   return fileArray.filter(function(file) {
-    return (file.split("/").length - 1) === depth;
-  })
+    var filePath = file.split("/");
+    return searchPath.join("/") == filePath.slice(0, searchPath.length).join('/') && filePath.length == searchPath.length + 1;
+  });
 }
 
-var getFoldersAtDepth = function(fileArray, depth) {
-  var dirs = [];
+var getFoldersInFolder = function(fileArray, folder) {
+  var searchPath = folder.split("/");
+  // first get just fiels
+  return _.uniq(fileArray.filter(function(file) {
+    var filePath = file.split("/");
+    return searchPath.join("/") == filePath.slice(0, searchPath.length).join('/') && filePath.length >= searchPath.length + 2;
+  }).map(function(filepath) {
+    return filepath.split("/").slice(0, folder.split("/").length+1).join("/");
+  }));
 
-  fileArray.forEach(function(file) {
-    var path = file.split("/");
-    if(path.length > depth+1 && dirs.indexOf(path[depth]) === -1) {
-      dirs.push(path[0]);
-    }
-  });
-  return dirs;
 };
 
-var getFilesInsideDir = function(files, dir, depth) {
-  // var ret = files.filter(function(file) {
-
-          //   return file.split("/")[0] === dir;
-          // }).map(function(file) {
-          //   return file.split("/").slice(1).join("/");
-          // });
-          // console.log("inside dir", dir, ret);
-          // return ret;
+var getFolderOrFilename = function(fullpath) {
+  return _.last(fullpath.split("/"));
 };
 
-var CurrentFiles = new EventEmitter();
+
+CurrentFiles = new EventEmitter();
 
 CurrentFiles.init = function() {
   var self = this;
-
-  self.files = [];
+  self.files = {};
   self.openFiles = [];
-  self.fileData = {};
-
   $.getJSON("/files")
     .done(function(data) {
-      self.files =  data;
+      // add a / to all files
+      self.files = _.reduce(data, function(result, val, key) {
+        result["/" + key] = _.defaults(val,  {LastOpened: new Date()});
+        return result;
+      }, {});
+
       self.emit('loaded');
     })
     .fail(function(jqxhr, textStatus, error) {
@@ -57,74 +57,83 @@ CurrentFiles.init = function() {
     conn.onmessage = function(evt) {
       var resp = JSON.parse(evt.data);
       self.handleMessage(resp);
-      self.emit('updated');
     }
   }
 }
 
 
-CurrentFiles.getFileContents = function(file, callback) {
-  var self = this;
-  if(self.fileData[file]) {
-    callback(self.fileData[file]);
-  }
 
-  $.get("/get_file?filename=" + file, function(result) {
-    self.fileData[file] = result;
-    callback(result);
-  });
-};
 
-CurrentFiles.setActiveFile = function(file) {
-  var self = this;
-  this.activeFile = file;
-  this.getFileContents(file, function(data) {
-    self.emit('activeFileChanged', data);
-  });
-};
 // type UpdateMessage struct {
 //   UpdateTime time.Time
 //   EventType  string
 //   Filename   string
 //   Contents   string
 // }
+// 
+CurrentFiles.handleMessage = function(message) {
+  var self = this;
+  message.Filename = "/" + message.Filename;
+
+  if(message.EventType === "update") {
+    self.files[message.Filename] = _.defaults(message, self.files[message.Filename]);
+  } else if(message.EventType === "remove") {
+    delete self.files[message.Filename];
+  }
+  this.emit('filesUpdated');
+}
+
+
+CurrentFiles.getFiles = function() {
+  return Object.keys(this.files).sort()
+};
+
+CurrentFiles.getFileObject = function(file) {
+  var self = this;
+  return self.files[file];
+};
+
+CurrentFiles.setActiveFile = function(file) {
+  var self = this;
+  this.activeFile = file;
+  
+  this.files[file].LastOpened = new Date();
+  // var data = this.getFileObject(file);
+  // self.emit('activeFileChanged', data);
+  this.emit('filesUpdated');
+ 
+};
+
+CurrentFiles.clearActiveFile = function() {
+  this.activeFile = null;
+  this.emit('filesUpdated');
+};
+
 
 CurrentFiles.openFile = function(file) {
   if(this.openFiles.indexOf(file) === -1) {
     this.openFiles.push(file);
-    this.emit('tabsUpdated');
-
   }
   this.setActiveFile(file);
+
 };
 
 CurrentFiles.closeFile = function(file) {
-  if(this.openFiles.indexOf(file) > -1) {
+
+  // 1.  the file is open and the current one
+  // 2.  the file is open and not the current one
+  // 3.  the file is not open (can't happen)
+  var currentTab = this.openFiles.indexOf(file);
+  if(currentTab > -1) { // it is a current tab
     this.openFiles.splice(this.openFiles.indexOf(file), 1);
-    this.emit('tabsUpdated');
+    if(this.openFiles.length > 0) {
+      CurrentFiles.setActiveFile(this.openFiles[currentTab]);
+    } else {
+      CurrentFiles.clearActiveFile();
+    }
   }
+
 };
-
-CurrentFiles.handleMessage = function(message) {
-  console.log("Got message", message);
-  var self = this;
-  // debugger;
-  if(message.EventType === "update") {
-    if(self.files.indexOf(message.Filename) === -1) {
-      self.files.push(message.Filename);
-    }
-
-    self.fileData[message.Filename] = message.Contents;
-    if(self.activeFile === message.Filename) {
-      self.emit('activeFileChanged', message.Contents);
-    }
-  } else if(message.EventType === "remove") {
-    if(this.files.indexOf(message.Filename) > -1) {
-      this.files.splice(this.files.indexOf(message.Filename), 1);
-    }   
-  }
-  this.emit('filesUpdated', message);
-}
 
 
 
@@ -132,7 +141,7 @@ CurrentFiles.handleMessage = function(message) {
 var FileListing = React.createClass({
   render: function() {
     return (
-      <Directory dir={"/"} files={this.props.files} depth={0} />
+      <Directory dir={""} files={this.props.files} depth={0} />
     )
   }
 });
@@ -142,43 +151,74 @@ var Directory = React.createClass({
     return {
       allfiles: [],
       files: [],
-      dirs: []
+      dirs: [],
+      open: true
     }
   },
 
+  toggleOpen: function() {
+    this.setState({open: !this.state.open});
+  },
+
   render: function() {
-    var files = getFilesAtDepth(this.props.files, this.props.depth);
-    var dirs = getFoldersAtDepth(this.props.files, this.props.depth);
-    console.log("files, dirs, depth", files, dirs, this.props.depth);
+    var files = getFilesInFolder(this.props.files, this.props.dir);
+    var dirs = getFoldersInFolder(this.props.files, this.props.dir);
+    // console.log("files, dirs, depth", files, dirs, this.props.depth);
+
+    function renderFiles() {
+      return (
+        <div>
+          {files.map(function(file) {
+            return <File file={file} />
+          })}
+        </div>
+      );
+    }
 
 
     var self = this;
     return (
-      <ul>
-        { this.props.depth !== 0 ? <li className="directory">{self.props.dir}</li> : "" }
-        {dirs.map(function(dir) {
-          return <Directory dir={dir} files={self.props.files} depth={self.props.depth+1} />
-        })}
-        <ul>
-          {files.map(function(file) {
-            return <FileList file={file} />
-          })}
-        </ul> 
-      </ul>
+      <div  style={{paddingLeft: 20}} >
+        <div onClick={this.toggleOpen} className="directory">
+          <span className="glyphicon glyphicon-folder-open" aria-hidden="true"></span>{"   "}
+           {getFolderOrFilename(self.props.dir) == "" ? "Project" : getFolderOrFilename(self.props.dir)}
+        </div>
+        { self.state.open ? dirs.map(function(dir) {
+          return <Directory dir={dir} files={self.props.files} />
+        }) : ""}
+        { self.state.open ? renderFiles() : ""}
+      </div>
+
     )
   }
 });
 
-var FileList = React.createClass({
+var File = React.createClass({
+  getInitialState: function() {
+    return {};
+  },
+
+  updatedSinceView: function() {
+    if(CurrentFiles.files[this.props.file].LastOpened < new Date(CurrentFiles.files[this.props.file].UpdateTime)) {
+    debugger;
+      return true;
+    } else {
+      return false;
+    }
+  },
+
   handleEvent: function(event) {
     console.log("clicked", this.props.file);
     CurrentFiles.openFile(this.props.file);
   },
   render: function() {
     return (
-      <li>
-        <a onClick={this.handleEvent}>{this.props.file}</a>
-      </li>
+      <div>
+        <a  style={{paddingLeft: 20}} onClick={this.handleEvent}>
+          <span className="glyphicon glyphicon-file" aria-hidden="true"></span>{" "}
+          {getFolderOrFilename(this.props.file)}</a> { this.updatedSinceView() ? <span className="glyphicon glyphicon-refresh" aria-hidden="true"></span>
+ : ""}
+      </div>
     )
   }
 });
@@ -186,45 +226,60 @@ var FileList = React.createClass({
 var FileViewer = React.createClass({
   getInitialState: function() {
     return {
-      contents: "",
-      files: []
+      CF: { openFiles: [] },
+      loaded: false
     }
   },
   listFiles: function() {
     this.setState({files: CurrentFiles.openFiles });
   },
+
   componentDidMount: function() {
     var self = this;
-    CurrentFiles.on('tabsUpdated', function() {
-      self.listFiles();
+
+    CurrentFiles.on('filesUpdated', function(contents) {
+      self.setState({CF: CurrentFiles, loaded: true});
     });
 
-    CurrentFiles.on('activeFileChanged', function(contents) {
-      self.setState({contents: contents});
-    });
-
+    var editor = ace.edit("editor");
+    editor.setTheme("ace/theme/monokai");
+    editor.getSession().setMode("ace/mode/javascript");
   },
 
   closeFile: function(file) {
     CurrentFiles.closeFile(file);
+    return false;
   },
   setActiveFile: function(file) {
     CurrentFiles.setActiveFile(file);
+    return false;
+  },
+
+  componentDidUpdate: function(prevProps, prevState) {
+        var editor = ace.edit("editor");
+        if(this.state.CF.activeFile) {
+          editor.setValue(this.state.CF.files[this.state.CF.activeFile].Contents,  1);
+        }
   },
   render: function() {
     var self = this;
+        var divStyle = {
+      // width: this.props.width,
+      height: 1000
+    };
     return (
       <div className="fileViewer">
-        <div className="fileTabs">
-          {this.state.files.map(function(file) { 
-            return <div onClick={self.setActiveFile.bind(self, file)}>{file} 
-              <span onClick={self.closeFile.bind(self, file)}>x</span>
-            </div>
+        <ul className="nav nav-tabs">
+          {this.state.CF.openFiles.map(function(file) {
+            return <li className={file == self.state.CF.activeFile ? "active": ""} role="presentation" onClick={self.setActiveFile.bind(self, file)}>
+              <a>{file.slice(1)}
+                <span onClick={self.closeFile.bind(self, file)}> x</span>
+              </a>
+            </li>
           })}
+        </ul>
+        <div id="editor" style={divStyle} className="fileContents">
         </div>
-        <pre className="fileContents">
-          {this.state.contents}
-        </pre>
       </div>
     )
   }
@@ -241,21 +296,27 @@ var App = React.createClass({
 
     CurrentFiles.init();
     CurrentFiles.on('loaded', function(files) {
-      self.setState({files: CurrentFiles.files});
+      self.setState({files: CurrentFiles.getFiles()});
     });
 
     CurrentFiles.on('filesUpdated', function(filename) {
-      self.setState({files: CurrentFiles.files});
+      self.setState({files: CurrentFiles.getFiles()});
     });
   },
   render: function() {
     return (
-      <div className="container">
-        <FileListing files={this.state.files} />
-        <FileViewer />
+      <div className="container-fluid">
+        <div className="row">
+          <div className="col-md-3">
+            <FileListing files={this.state.files} />
+          </div>
+          <div className="col-md-8">
+            <FileViewer className="col-md-9" />
+          </div>
+        </div>
       </div>
     )
-  }  
+  }
 
 });
 

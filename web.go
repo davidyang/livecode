@@ -26,7 +26,8 @@ func main() {
 	// fmt.Println("files", files)
 
 	http.HandleFunc("/files", func(w http.ResponseWriter, r *http.Request) {
-		b, _ := json.Marshal(watchedFiles.getFiles())
+		// b, _ := json.Marshal(watchedFiles.getFiles())
+		b, _ := json.Marshal(watchedFiles)
 		fmt.Fprintf(w, string(b))
 	})
 
